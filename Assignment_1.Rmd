@@ -8,13 +8,6 @@ output:
   word_document: default
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
-
-
-
-
 ```{r}
 ######Q1:What are the measures of central tendency of data? What is the order of these measures for skewed data?
 #Ans: mean, mode and meadian are the measures of central tendency. For skewed data median is the measure of data.
