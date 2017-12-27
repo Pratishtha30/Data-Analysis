@@ -1,0 +1,54 @@
+---
+title: "Assignment 1"
+author: "Pratishtha Deep"
+date: "September 29, 2017"
+output:
+  html_document: default
+  pdf_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+
+```{r}
+######Q1:What are the measures of central tendency of data? What is the order of these measures for skewed data?
+#Ans: mean, mode and meadian are the measures of central tendency. For skewed data median is the measure of data.
+
+######Q2:How can you measure variation of data?
+#Ans: variance, range, quartile and interquartile
+
+######Q3:Create a vector of positive odd integers less than 100
+int<- c(1:100)
+odd_int<-seq(1, 100 , 2); odd_int
+
+######Q4:Remove the values greater than 60 and less than 80
+int[int>60 & int<80]
+
+
+######Q5:Find the five number summary of the remaining set of values
+fivenum(int)
+
+######Q6:Consider the following vector of values.
+X <- c(8, 14, 9, 15, NA, 8,13,2,9, NA)
+#Write an R program to return the positions of the missing values
+which(is.na(X))
+
+######Q7:Write an R program to count the number of non-missing values
+sum(!is.na(X))
+
+######Q8:Write an R program to replace the missing values with the mean of the non-missing values.
+X[is.na(X)] = mean(X, na.rm=TRUE); X
+
+######Q9:Load mtcars data. Write an R program that will rearrange the rows of the data frame so that they are sorted by the value of Horsepower and Cylinders
+mtcars[order(mtcars$hp, mtcars$cyl),]
+
+######Q10:Write an R program to count the number of observations with cylinders greater than 4 and gear greater than 3.
+length(which(mtcars$cyl > 4& mtcars$gear>3))
+```
+
+
