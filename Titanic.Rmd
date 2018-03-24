@@ -1,0 +1,513 @@
+---
+title: "titanic"
+author: "Pratishtha"
+date: "November 16, 2017"
+output:
+  word_document: default
+  pdf_document: default
+  ptitanic_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(caTools)
+library(plyr)
+require(gdata)
+library(VIM)
+library(rpart)
+library(mice)
+library(MASS)
+library(stringr)
+library(ggplot2)
+library(dplyr)
+library(vcd)
+```
+
+###Load the data set
+
+```{r}
+titanic <-read.csv("C:/Users/pratishtha/Downloads/Final.csv", header=TRUE)
+titanic
+```
+
+
+
+### Data Distribution
+
+```{r}
+str(titanic)
+```
+The plot below shows that the distribution of fare feature is left skewed.
+```{r}
+d1 <- plot(density(titanic$fare, na.rm = TRUE), main = "Fare - Density")
+```
+
+```{r}
+d2 <- plot(density(titanic$age, na.rm = TRUE), main = "age - Density")
+mean(titanic$age, na.rm = TRUE)
+```
+
+```{r}
+plot(density(titanic$survived, na.rm = TRUE), main = "survived - Density")
+ggplot(titanic, aes(age)) + geom_histogram(aes(y = ..density..), alpha = 0.7, fill = "#330033") + geom_density(alpha = 0.5, fill = "#ee4d4d")
+
+boxplot(titanic$age ~ titanic$pclass, xlab = "Class", ylab = "age", col = c("red"))
+
+```
+
+```{r}
+###checking for missing values
+md.pattern(titanic)
+aggr(titanic, prop = FALSE, numbers = TRUE)
+matrixplot(titanic)
+```
+
+```{r}
+library(corrplot)
+
+chisq.test(titanic$pclass, titanic$survived, correct = FALSE)
+
+
+```
+  
+```{r}
+chisq.test(titanic$survived, titanic$age)
+```
+
+
+```{r}
+chisq.test(titanic$survived, titanic$sex)
+```
+
+
+```{r}
+#tbl <- table(titanic$survived, titanic$boat)
+chisq.test(titanic$survived, titanic$boat, correct = FALSE)
+#summary(tbl)
+```
+
+
+```{r}
+chisq.test(titanic$pclass, titanic$fare)
+
+```
+
+```{r}
+# validate Pclass data
+titanic <- subset(titanic , titanic$pclass == 1 | titanic$pclass == 2 | titanic$pclass == 3)
+str(titanic) # invalid Plass eleminated (different from 1,2,3)
+
+# validate age data
+titanic <- subset(titanic , titanic$age >= 0 & titanic$age <= 100)
+str(titanic) # invalid age eleminated (age must in rage [0,100])
+
+# validate sex data
+titanic <- subset(titanic , titanic$sex == 'male' | titanic$sex == 'female')
+str(titanic) # invalid sex eleminated (age must either 'male' or 'female')
+
+```
+
+```{r}
+table(titanic$sibsp)
+ggplot(titanic, aes(sibsp, ..count.., fill = factor(survived))) + geom_bar(position="dodge")
+table(titanic$parch)
+ggplot(titanic, aes(parch, ..count.., fill = factor(survived))) + geom_bar(position="dodge")
+```
+
+
+
+```{r}
+###replacing the missing age values with Mean for males and females
+##check if there is any NA in age and sex feature
+
+any(is.na(titanic$age))
+any(is.na(titanic$sex))
+sum(is.na(titanic$age))
+
+hist(titanic$age, freq = F, xlab ="age", col = "lightblue", main = "before replacement")
+
+male <- subset(titanic,sex=="male")
+mageMean <- mean(male$age, na.rm = TRUE)
+a <- which(male$age %in% NA)
+male$age[a] <- mageMean
+mageMean
+
+female <- subset(titanic, sex =="female")
+fageMean <- mean(female$age, na.rm = TRUE)
+a <- which(female$age %in% NA)
+female$age[a] <- fageMean
+fageMean
+
+titanic <- rbind(male, female)
+
+any(is.na(titanic$age))
+
+#hist(titanic$age, freq = F, xlab ="age", col = "darkblue", main = "after replacement")
+
+##ggplot(titanic, aes(age)) + geom_density(kernel="gaussian")
+
+ggplot(titanic, aes(age)) + geom_histogram(aes(y = ..density..), alpha = 0.7, fill = "#330033") + geom_density(alpha = 0.5, fill = "#ee4d4d")
+
+
+```
+
+```{r}
+sum(is.na(titanic$boat))
+```
+
+If the passenger has not survived, the boat cannot hold a valid value. So we can assign those observations to 0. The number of passengers who survived the disaster but missing the boat information is 23 and we need to impute those values.
+
+```{r}
+###Computing the boat values
+
+##survived 1 and missing boat values
+
+
+bt1 <- subset(titanic, survived == 1)
+any(is.na(titanic$boat))
+sum(is.na(bt1$boat))
+bt1[is.na(bt1$boat),]  <- c("N") 
+sum(is.na(bt1$boat))
+titanic$boat <- as.factor(titanic$boat)
+
+###survived 0 and missing boat values
+
+bt2 <- subset(titanic, survived==0)
+bt2$boat <- 0
+any(is.na(bt2$boat))
+
+```
+
+```{r}
+#### Computing the missing fare values
+
+length(unique(titanic$fare))
+m <- which(is.na(titanic$fare))
+titanic[m,"pclass"]
+fare1 <- subset(titanic, pclass == 3)
+fareMean <- mean(fare1$fare, na.rm = TRUE)
+titanic$fare[is.na(titanic$fare)] <- fareMean
+any(is.na(titanic$fare))
+```
+
+
+
+Data Analysis
+
+```{r}
+###counting the number of male and female survivers and the mean age
+maleSur <- titanic$age[((titanic$age > 18) & (titanic$sex== "male") & (titanic$survived == 1))]
+length(maleSur)
+femaleSur <- titanic$age[((titanic$age > 18) & (titanic$sex== "female") & (titanic$survived == 1))]
+length(femaleSur)
+
+```
+
+```{r}
+mean(maleSur)
+fivenum(maleSur)
+hist(maleSur, col = "salmon")
+rug(maleSur)
+```
+
+```{r}
+mean(femaleSur)
+fivenum(femaleSur)
+hist(femaleSur, col = "salmon")
+rug(femaleSur)
+```
+
+```{r}
+###
+max(maleSur)
+max(femaleSur)
+```
+
+```{r}
+###
+min(maleSur)
+min(femaleSur)
+```
+```{r}
+tt <- table(titanic$pclass)
+xx <- barplot(tt, col = c("purple","pink","blue"), names.arg = c("First Class", "Middle Class", "Working class"))
+
+
+# sex group
+
+sumMale = sum(titanic$sex == "male")
+sumFemale = sum(titanic$sex == "female")
+
+pieChart=data.frame(sex=c('male','female'),count=c(sumMale,sumFemale));pieChart
+bp<- ggplot(pieChart, aes(x="", y=count, fill=sex))+ geom_bar(width = 1, stat = "identity")
+bp
+
+pie <- bp + coord_polar("y", start=0)
+pie
+
+# age groups
+age0to12 = sum(titanic$age < 12); 
+age0to12
+
+age12to21 = sum(titanic$age >= 12 & titanic$age < 21); 
+age12to21
+
+age21to45 = sum(titanic$age >= 21 & titanic$age < 45); 
+age21to45
+
+age45to100 = sum(titanic$age >= 45);
+age45to100 
+
+ageChart=data.frame(range=c('(0 - 12)','[12 - 21)', '[21-45)','[45-100)'),  count = c(age0to12,age12to21,age21to45,age45to100));
+ageChart
+
+ac<- ggplot(ageChart, aes(x="", y=count, fill=range))+
+  geom_bar(width = 1, stat = "identity")
+ac
+
+pieac <- ac + coord_polar("y", start=0)
+pieac
+
+# survival with age group
+age0to12S = sum(titanic$age < 12 & titanic$survived == 1, na.rm=TRUE);
+age0to12S;
+age0to12;
+
+age0to12S = age0to12S / age0to12; 
+age0to12S
+
+age12to21S = sum(titanic$age >= 12 & titanic$age < 21 & titanic$survived == 1, na.rm=TRUE); 
+age12to21S; 
+age12to21
+
+age12to21S = age12to21S / age12to21 ;
+age12to21S
+
+age21to45S = sum(titanic$age >= 21 & titanic$age < 4512 & titanic$survived == 1, na.rm=TRUE);
+age21to45S; 
+age21to45
+
+age21to45S = age21to45S / age21to45; 
+age21to45S
+
+age45to100S = sum(titanic$age >= 45 & titanic$survived == 1, na.rm=TRUE);
+age45to100S; 
+age45to100
+
+age45to100S = age45to100S / age45to100; 
+age45to100S
+
+
+ageChartS=data.frame(age=c('(0 - 12)','[12 - 21)', '[21-45)','[45-100)'), percentage = c(age0to12S,age12to21S,age21to45S,age45to100S));
+ageChartS
+
+acS<- ggplot(ageChartS, aes(x="", y=percentage, fill=age))+ geom_bar(width = 1, stat = "identity")
+acS
+
+pieacS <- acS + coord_polar("y", start=0)
+pieacS
+```
+
+```{r}
+###counting the number of children survivers and the mean children's age
+childSur <- filter(titanic, age<18)
+childSur <- filter(childSur, survived==1)
+nrow(childSur)
+```
+
+
+```{r}
+mean(childSur$age)
+fivenum(childSur$age)
+hist(childSur$age, col = "salmon")
+rug(childSur$age)
+```
+
+```{r}
+###
+max(childSur$age)
+min(childSur$age)
+
+```
+
+```{r}
+ggplot(titanic, aes(x = factor(pclass), fill = factor(sex))) + geom_bar(position = "dodge") + facet_grid(. ~ survived)
+
+```
+
+```{r}
+
+ggplot(titanic, aes(x = factor(survived), fill = factor(sex))) + geom_bar(position = "dodge") + facet_grid(. ~ pclass)
+```
+
+
+```{r}
+# surname from passenger name 
+
+titanic$surname <- sapply(titanic$name, function(X) {strsplit(as.character(X), split="[,.]")[[1]][1]}) 
+# Create a family size variable including the passenger themselves 
+titanic$familySize <- titanic$sibsp + titanic$parch + 1 
+# Create a family variable 
+titanic$family <- paste(titanic$surname, titanic$familySize, sep='_') 
+
+titanic$title <- as.factor(str_sub(titanic$name, str_locate(titanic$name, ",")[ , 1] + 2, str_locate(titanic$name, "\\.")[ , 1] - 1))
+table(titanic$sex,titanic$title)
+ggplot(titanic, aes(title, ..count.., fill = factor(survived))) + geom_bar(position="dodge")
+```
+```{r}
+# Use ggplot2 to visualize the relationship between family size & survival 
+
+ggplot(titanic[1:1309,], aes(x = familySize, fill = factor(survived))) + geom_bar(stat='count', position='dodge')  + scale_x_continuous(breaks=c(1:11)) + labs(x = 'Family Size')
+# + theme_few()
+
+#Check if FamilySize variable is a useful prediction of survivability library(rpart) 
+fol <- formula(survived ~ age + sex + pclass + familySize) 
+rmodel <- rpart(fol, method="class", data=titanic) 
+rpred <- predict(rmodel, newdata=titanic, type="class") 
+print(rmodel)
+
+p <- ggplot(aes(x=pclass,y=factor(familySize),color=survived),data=titanic) + geom_jitter() + facet_grid(sex ~ .)
+p + ggtitle("Large Family Size >= 5 more likely to not survive") + theme_bw() + geom_hline(yintercept=5) + ylab("Family Size")
+
+```
+```{r}
+
+#Result: If person had 5 family members or more (including themselves) then more likely the person didn't survive especially in the third class which had entire families onboard.
+# Discretize family size 
+titanic$familySizeD[titanic$familySize == 1] <- 'singleton' 
+titanic$familySizeD[titanic$familySize < 5 & titanic$familySize > 1] <- 'small'
+titanic$familySizeD[titanic$familySize > 4] <- 'large'
+# Show family size by survival using a mosaic plot
+mosaicplot(table(titanic$familySizeD, titanic$survived), main='Family Size by Survival', shade=TRUE)
+```
+```{r}
+
+#CHILD AND MOTHER # relationship between age & survival
+ggplot(titanic[1:1309,], aes(age, fill = factor(survived))) + geom_histogram() + facet_grid(.~sex)
+
+# Create the column child, and indicate whether child or adult 
+titanic$child[titanic$age < 18] <- 'Child' 
+titanic$child[titanic$age >= 18] <- 'Adult' 
+# Show counts 
+table(titanic$child, titanic$survived)
+
+#Create Mother variable 
+titanic$mother <- 'Not Mother'
+titanic$mother[titanic$sex == 'female' & titanic$parch > 0 & titanic$age > 18 
+               & titanic$title != 'Miss'] <- 'Mother'
+
+# Show counts 
+table(titanic$mother, titanic$survived)
+
+# factorizing our two new factor variables 
+
+titanic$child <- factor(titanic$child)
+titanic$mother <- factor(titanic$mother)
+ggplot(titanic, aes(child, ..count.., fill = factor(survived))) + geom_bar(position="dodge")
+ggplot(titanic, aes(mother, ..count.., fill = factor(survived))) + geom_bar(position="dodge")
+
+```
+
+```{r}
+
+library(DT)
+sum(!is.na(titanic$cabin))
+length(unique(titanic$cabin))
+#is.na(titanic$cabin[titanic$cabin == '']) <- TRUE
+sum(is.na(titanic$cabin))
+# those with cabins have higher survival rates. 
+
+CabinType <- substring(titanic$cabin,1,1)
+ggplot(titanic, aes(CabinType, ..count.., fill = factor(survived))) + geom_bar(position="dodge")
+```
+
+```{r}
+#Embarked
+
+#There are 3 departure locations, most people are from Southampton then Cherbourg and Queenstown. 
+
+table(titanic$embarked)
+ggplot(titanic, aes(embarked, ..count.., fill = factor(survived))) + geom_bar(position="dodge")
+
+sum(!is.na(titanic$embarked))
+length(unique(titanic$embarked))
+
+#is.na(titanic$embarked[titanic$embarked =='']) <- TRUE
+sum(is.na(titanic$embarked))
+
+titanic$embarked[is.na(titanic$embarked)] <- "S" 
+ggplot(titanic, aes(embarked, ..count.., fill = factor(survived))) + geom_bar(position="dodge")
+
+```
+
+```{r}
+#Hypothesis Testing 
+#z-test: if passengers of upper class have better survival rate than its population.
+#Ho: There is no significant difference in the chances of survival of upper and lower class 
+#H1: There is a better chance of survival for upper class passengers 
+#create a new data frame for upper class passengers 
+
+new_data <- subset(titanic, titanic$pclass == 1) 
+
+#function for z test 
+
+z.test = function(a, b, n){
+  sample_mean = mean(a) 
+  pop_mean = mean(b) 
+  c = nrow(n) 
+  var_b = var(b) 
+zeta = (sample_mean - pop_mean) / (sqrt(var_b/c)) 
+return(zeta) 
+}
+
+#call function 
+z.test(new_data$survived, titanic$survived, new_data)
+```
+
+```{r}
+####Creating training and testing datasets
+sp <- sample.split(titanic, SplitRatio = 0.8)
+train <- subset(titanic, sp =="TRUE")
+test <- subset(titanic, sp == "FALSE")
+
+# create a vector for survived to evaluate the model
+test_actual <- test$survived
+```
+
+
+```{r}
+### Regression to create a model to predict the chances of survival
+
+fit <- glm(survived ~ sex + pclass + age + fare + embarked + familySize + title, data = train)
+step <- stepAIC(fit, direction="both")
+step$anova
+
+model_class <- glm(survived ~ sex + pclass + age + familySize, family=binomial(link = 'logit'),data = train)
+summary(model_class)
+
+test$survived <- round(predict(model_class, test))
+
+test$survived[test$survived < 0] <- 0
+test$survived[test$survived > 1] <- 1
+
+test_predicted <- test$survived
+
+submit <- data.frame(Passenger_Name = test$name, survived = test$survived)
+
+write.csv(submit, file = "model_class_Test.csv", row.names = F)
+plot(model_class)
+```
+
+```{r}
+##Evaluations to see if the model is working 
+
+prop.table(table(test_actual))
+prop.table(table(test_predicted))
+
+```
+
